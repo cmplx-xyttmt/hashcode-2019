@@ -102,7 +102,7 @@ public class Pizza {
         ArrayList<Slice> slices = new ArrayList<>();
         Random random = new Random();
         long maxIterations = Long.MAX_VALUE;
-        if (H == 14) maxIterations = 5000;
+        if (H == 14) maxIterations = 10000;
         long maxCount = 0;
 
         for (int r1 = 0; r1 < prefixSum.length; r1++) {
@@ -120,8 +120,9 @@ public class Pizza {
 
                     int ar = 0, ac = 0;
                     while (ac == 0 && ar == 0) {
-                        ar = random.nextInt(2);
-                        ac = random.nextInt(2);
+                        ar = H < 15 ? (r1 + rowAdd) < prefixSum.length - 1 ? 1 : 0 : random.nextInt(2);
+                        ac = H < 15 ? (r1 + rowAdd) < prefixSum.length - 1 ? 0 : 1 : random.nextInt(2);
+//                        if (H >= 13) System.out.println(ar + " " + ac);
                     }
                     rowAdd += ar;
                     colAdd += ac;
@@ -132,13 +133,15 @@ public class Pizza {
             maxCount = Math.max(maxCount, count);
         }
 
-//        slices.sort(Slice::compareTo);
-        slices.sort(Collections.reverseOrder(Slice::compareTo));
+        slices.sort(Slice::compareTo); // Better performance
+//        slices.sort(Collections.reverseOrder(Slice::compareTo)); // Worse performance
+//        Collections.shuffle(slices);
 
-        for (int i = 0; i < Math.min(10, slices.size()); i++) {
-            Slice slice = slices.get(i);
-            System.out.println(i + " " + (slice.r2 - slice.r1 + 1)*(slice.c2 - slice.c1 + 1));
-        }
+//        System.out.println("New data set: " + L + " " + H);
+//        for (int i = 0; i < Math.min(10, slices.size()); i++) {
+//            Slice slice = slices.get(i);
+//            System.out.println(i + " " + (slice.r2 - slice.r1 + 1)*(slice.c2 - slice.c1 + 1));
+//        }
         boolean[] toRemove = new boolean[slices.size()];
         for (int i = 0; i < slices.size(); i++) {
             for (int j = i + 1; j < slices.size(); j++) {
@@ -179,7 +182,7 @@ public class Pizza {
 
         @Override
         public int compareTo(Slice other) {
-            return -1*(other.r2 - other.r1 + 1)*(other.c2 - other.c1 + 1) + (r2 - r1 + 1)*(c2 - c1 + 1);
+            return (other.r2 - other.r1 + 1)*(other.c2 - other.c1 + 1) - (r2 - r1 + 1)*(c2 - c1 + 1);
         }
 
         boolean doNotOverlap(Slice other) {
