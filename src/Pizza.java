@@ -177,7 +177,7 @@ public class Pizza {
 
         boolean isEligible(int L) {
             int[] size = getSize();
-            return size[0] >= L && size[1] >= L;
+            return (size[0] >= L && size[1] >= L) && !(size[0] > L && size[1] > L);
         }
 
         @Override
