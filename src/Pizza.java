@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Random;
 import java.util.StringTokenizer;
@@ -19,7 +18,7 @@ public class Pizza {
 
     public static void main(String[] args) throws IOException {
         BufferedWriter writer;
-        for (int i1 = 0; i1 < INPUT_FILENAMES.length; i1++) {
+        for (int i1 = 0; i1 < INPUT_FILENAMES.length - 2; i1++) {
             String FILENAME = INPUT_FILENAMES[i1];
             String outputFile = OUTPUT_FILENAMES[i1];
             init(FILENAME);
@@ -133,7 +132,7 @@ public class Pizza {
             maxCount = Math.max(maxCount, count);
         }
 
-        slices.sort(Slice::compareTo); // Better performance
+//        slices.sort(Slice::compareTo); // Better performance
 //        slices.sort(Collections.reverseOrder(Slice::compareTo)); // Worse performance
 //        Collections.shuffle(slices);
 
@@ -142,18 +141,26 @@ public class Pizza {
 //            Slice slice = slices.get(i);
 //            System.out.println(i + " " + (slice.r2 - slice.r1 + 1)*(slice.c2 - slice.c1 + 1));
 //        }
-        boolean[] toRemove = new boolean[slices.size()];
-        for (int i = 0; i < slices.size(); i++) {
-            for (int j = i + 1; j < slices.size(); j++) {
-                if (toRemove[i]) break;
-                if (!slices.get(i).doNotOverlap(slices.get(j))) toRemove[j] = true;
-            }
+//        boolean[] toRemove = new boolean[slices.size()];
+//        for (int i = 0; i < slices.size(); i++) {
+//            for (int j = i + 1; j < slices.size(); j++) {
+//                if (toRemove[i]) break;
+//                if (!slices.get(i).doNotOverlap(slices.get(j))) toRemove[j] = true;
+//            }
+//        }
+//
+//        ArrayList<Slice> ans = new ArrayList<>();
+//        for (int i = 0; i < slices.size(); i++) {
+//            if (!toRemove[i]) ans.add(slices.get(i));
+//        }
+
+        ArrayList<CandSolution> candSolutions = new ArrayList<>();
+        for (int i = 0; i < Math.min(100, slices.size()); i++) {
+            candSolutions.add(chooseCliqueGreedy(slices, i));
         }
 
-        ArrayList<Slice> ans = new ArrayList<>();
-        for (int i = 0; i < slices.size(); i++) {
-            if (!toRemove[i]) ans.add(slices.get(i));
-        }
+        candSolutions.sort(Collections.reverseOrder(CandSolution::compareTo));
+        ArrayList<Slice> ans = candSolutions.get(0).clique;
 
         System.out.println("Max iterations performed for H = " + H + ": " + maxCount);
         System.out.println("Slices size: " + slices.size());
@@ -171,12 +178,16 @@ public class Pizza {
             this.c2 = c2;
         }
 
-        int[] getSize() {
+        int[] getIngredientsSize() {
             return calcIngredients(r1, c1, r2, c2);
         }
 
+        int getSize() {
+            return (r2 - r1 + 1)*(c2 - c1 + 1);
+        }
+
         boolean isEligible(int L) {
-            int[] size = getSize();
+            int[] size = getIngredientsSize();
             return (size[0] >= L && size[1] >= L) && !(size[0] > L && size[1] > L);
         }
 
@@ -187,6 +198,50 @@ public class Pizza {
 
         boolean doNotOverlap(Slice other) {
             return other.r1 > r2 || r1 > other.r2 || other.c1 > c2 || c1 > other.c2;
+        }
+
+        @Override
+        public String toString() {
+            return "{" + r1 + " " + c1 + " " + r2 + " " + c2 + "}";
+        }
+    }
+
+    private static CandSolution chooseCliqueGreedy(ArrayList<Slice> slices, int index) {
+        ArrayList<Slice> clique = new ArrayList<>();
+        clique.add(slices.get(index));
+        int size = slices.get(index).getSize();
+//        System.out.println("All candidates: " + slices);
+        for (int i = index + 1; i < slices.size(); i++) {
+            boolean fits = true;
+            Slice candSlice = slices.get(i);
+            for (int j = 0; j < clique.size(); j++) {
+                if (!candSlice.doNotOverlap(clique.get(j))) {
+                    fits = false;
+                    break;
+                }
+            }
+
+            if (fits) {
+                clique.add(candSlice);
+                size += candSlice.getSize();
+            }
+        }
+
+        return new CandSolution(clique, size);
+    }
+
+    private static class CandSolution implements Comparable<CandSolution> {
+        ArrayList<Slice> clique;
+        int size;
+
+        CandSolution(ArrayList<Slice> clique, int size) {
+            this.clique = clique;
+            this.size = size;
+        }
+
+        @Override
+        public int compareTo(CandSolution other) {
+            return size - other.size;
         }
     }
 
