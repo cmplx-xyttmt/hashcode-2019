@@ -18,16 +18,16 @@ public class Pizza {
 
     public static void main(String[] args) throws IOException {
         BufferedWriter writer;
-        for (int i1 = 0; i1 < INPUT_FILENAMES.length - 2; i1++) {
+        for (int i1 = 0; i1 < INPUT_FILENAMES.length - 1; i1++) {
             String FILENAME = INPUT_FILENAMES[i1];
             String outputFile = OUTPUT_FILENAMES[i1];
             init(FILENAME);
             writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(outputFile))));
             int R = nextInt(), C = nextInt(), L = nextInt(), H = nextInt();
-            prefixSum = new int[R][C][2];
-            pizza = new String[R];
+            prefixSum = new int[R + 2][C + 2][2];
+            pizza = new String[R + 2];
 
-            for (int i = 0; i < pizza.length; i++) pizza[i] = next();
+            for (int i = 1; i < pizza.length - 1; i++) pizza[i] = " " + next() + " ";
 
             fillPrefixSum(R, C);
 //            writer.write("File: " + FILENAME + " L & H: " + L + " " + H + " Rows & Columns: " + R + " " + C);
@@ -51,7 +51,8 @@ public class Pizza {
         }
 
         writer.write(ans.size() + "");
-        for (Slice slice: ans) writer.write("\n" + slice.r1 + " " + slice.c1 + " " + slice.r2 + " " + slice.c2);
+        for (Slice slice: ans)
+            writer.write("\n" + (slice.r1 - 1) + " " + (slice.c1 - 1) + " " + (slice.r2 - 1) + " " + (slice.c2 - 1));
     }
 
     // last dimension: 0 - represents T, 1 - represents M.
@@ -59,26 +60,20 @@ public class Pizza {
     private static String[] pizza;
 
     private static void fillPrefixSum(int R, int C) {
-        for (int i = 0; i < R; i++) {
-            for (int j = 0; j < C; j++) {
+        for (int i = 1; i <= R; i++) {
+            for (int j = 1; j <= C; j++) {
                 if (pizza[i].charAt(j) == 'T') prefixSum[i][j][0] = 1;
                 else prefixSum[i][j][1] = 1;
 
-                if (i > 0) {
-                    prefixSum[i][j][0] += prefixSum[i - 1][j][0];
-                    prefixSum[i][j][1] += prefixSum[i - 1][j][1];
-                }
+                prefixSum[i][j][0] += prefixSum[i - 1][j][0];
+                prefixSum[i][j][1] += prefixSum[i - 1][j][1];
 
-                if (j > 0) {
-                    prefixSum[i][j][0] += prefixSum[i][j - 1][0];
-                    prefixSum[i][j][1] += prefixSum[i][j - 1][1];
-                }
+                prefixSum[i][j][0] += prefixSum[i][j - 1][0];
+                prefixSum[i][j][1] += prefixSum[i][j - 1][1];
 
                 // Subtract double counted part
-                if (i > 0 && j > 0) {
-                    prefixSum[i][j][0] -= prefixSum[i - 1][j - 1][0];
-                    prefixSum[i][j][1] -= prefixSum[i - 1][j - 1][1];
-                }
+                prefixSum[i][j][0] -= prefixSum[i - 1][j - 1][0];
+                prefixSum[i][j][1] -= prefixSum[i - 1][j - 1][1];
             }
         }
     }
@@ -99,40 +94,27 @@ public class Pizza {
 
     private static ArrayList<Slice> solve1(int L, int H) {
         ArrayList<Slice> slices = new ArrayList<>();
-        Random random = new Random();
-        long maxIterations = Long.MAX_VALUE;
-        if (H == 14) maxIterations = 10000;
+
         long maxCount = 0;
 
-        for (int r1 = 0; r1 < prefixSum.length; r1++) {
-            long count = 0;
-            for (int c1 = 0; c1 < prefixSum[0].length; c1++) {
-                int rowAdd = 0;
-                int colAdd = 0;
+        for (int r1 = 1; r1 < prefixSum.length - 1; r1++) {
+            for (int c1 = 1; c1 < prefixSum[0].length - 1; c1++) {
+                int min = 2*L;
 
-                while ((rowAdd + 1)*(colAdd + 1) <= H
-                        && (r1 + rowAdd) < prefixSum.length
-                        && (c1 + colAdd) < prefixSum[0].length) {
-                    Slice slice = new Slice(r1, c1, r1 + rowAdd, c1 + colAdd);
-
-                    if (slice.isEligible(L)) slices.add(slice);
-
-                    int ar = 0, ac = 0;
-                    while (ac == 0 && ar == 0) {
-                        ar = H < 15 ? (r1 + rowAdd) < prefixSum.length - 1 ? 1 : 0 : random.nextInt(2);
-                        ac = H < 15 ? (r1 + rowAdd) < prefixSum.length - 1 ? 0 : 1 : random.nextInt(2);
-//                        if (H >= 13) System.out.println(ar + " " + ac);
+                for (int i = min; i <= H; i++) {
+                    for (int j = 1; j <= i; j++) {
+                        if (i % j == 0) {
+                            if (r1 + j < prefixSum.length - 1 && c1 + i/j < prefixSum[0].length) {
+                                Slice slice = new Slice(r1, c1, r1 + j - 1, c1 + i / j - 1);
+                                if (slice.isEligible(L)) slices.add(slice);
+                            }
+                        }
                     }
-                    rowAdd += ar;
-                    colAdd += ac;
-                    count++;
-                    if (count >= maxIterations) break;
                 }
             }
-            maxCount = Math.max(maxCount, count);
         }
 
-//        slices.sort(Slice::compareTo); // Better performance
+        slices.sort(Slice::compareTo); // Better performance
 //        slices.sort(Collections.reverseOrder(Slice::compareTo)); // Worse performance
 //        Collections.shuffle(slices);
 
@@ -141,26 +123,18 @@ public class Pizza {
 //            Slice slice = slices.get(i);
 //            System.out.println(i + " " + (slice.r2 - slice.r1 + 1)*(slice.c2 - slice.c1 + 1));
 //        }
-//        boolean[] toRemove = new boolean[slices.size()];
-//        for (int i = 0; i < slices.size(); i++) {
-//            for (int j = i + 1; j < slices.size(); j++) {
-//                if (toRemove[i]) break;
-//                if (!slices.get(i).doNotOverlap(slices.get(j))) toRemove[j] = true;
-//            }
-//        }
-//
-//        ArrayList<Slice> ans = new ArrayList<>();
-//        for (int i = 0; i < slices.size(); i++) {
-//            if (!toRemove[i]) ans.add(slices.get(i));
-//        }
-
-        ArrayList<CandSolution> candSolutions = new ArrayList<>();
-        for (int i = 0; i < Math.min(100, slices.size()); i++) {
-            candSolutions.add(chooseCliqueGreedy(slices, i));
+        boolean[] toRemove = new boolean[slices.size()];
+        for (int i = 0; i < slices.size(); i++) {
+            for (int j = i + 1; j < slices.size(); j++) {
+                if (toRemove[i]) break;
+                if (!slices.get(i).doNotOverlap(slices.get(j))) toRemove[j] = true;
+            }
         }
 
-        candSolutions.sort(Collections.reverseOrder(CandSolution::compareTo));
-        ArrayList<Slice> ans = candSolutions.get(0).clique;
+        ArrayList<Slice> ans = new ArrayList<>();
+        for (int i = 0; i < slices.size(); i++) {
+            if (!toRemove[i]) ans.add(slices.get(i));
+        }
 
         System.out.println("Max iterations performed for H = " + H + ": " + maxCount);
         System.out.println("Slices size: " + slices.size());
@@ -203,45 +177,6 @@ public class Pizza {
         @Override
         public String toString() {
             return "{" + r1 + " " + c1 + " " + r2 + " " + c2 + "}";
-        }
-    }
-
-    private static CandSolution chooseCliqueGreedy(ArrayList<Slice> slices, int index) {
-        ArrayList<Slice> clique = new ArrayList<>();
-        clique.add(slices.get(index));
-        int size = slices.get(index).getSize();
-//        System.out.println("All candidates: " + slices);
-        for (int i = index + 1; i < slices.size(); i++) {
-            boolean fits = true;
-            Slice candSlice = slices.get(i);
-            for (int j = 0; j < clique.size(); j++) {
-                if (!candSlice.doNotOverlap(clique.get(j))) {
-                    fits = false;
-                    break;
-                }
-            }
-
-            if (fits) {
-                clique.add(candSlice);
-                size += candSlice.getSize();
-            }
-        }
-
-        return new CandSolution(clique, size);
-    }
-
-    private static class CandSolution implements Comparable<CandSolution> {
-        ArrayList<Slice> clique;
-        int size;
-
-        CandSolution(ArrayList<Slice> clique, int size) {
-            this.clique = clique;
-            this.size = size;
-        }
-
-        @Override
-        public int compareTo(CandSolution other) {
-            return size - other.size;
         }
     }
 
