@@ -1,9 +1,11 @@
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.PriorityQueue;
+import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 
@@ -35,36 +37,49 @@ public class PhotoSlideShow {
             }
 
             slides = new ArrayList<>();
+            slideTags = new HashMap<>();
             ArrayList<Photo> verticals = new ArrayList<>();
             for (int i = 0; i < photos.size(); i++) {
                 Photo photo = photos.get(i);
                 if (photo.orientation == 'H') {
                     slides.add(new Slide(i, -1, photo.tags, null, slides.size()));
                     updateSlideValue(slides.size() - 1);
-                }
-                else {
-                    verticals.add(photo);
-                    if (verticals.size() == 2) {
-                        Photo photo1 = verticals.get(0);
-                        Photo photo2 = verticals.get(1);
-
-                        slides.add(new Slide(photo1.index, photo2.index, photo1.tags, photo2.tags, slides.size()));
-                        updateSlideValue(slides.size() - 1);
-                        verticals = new ArrayList<>();
-                    }
-                }
+                    updateSlideTags(slides.get(slides.size() - 1));
+                } else verticals.add(photo);
             }
 
-            Collections.shuffle(slides);
+            verticals.sort(Photo::compareTo);
+            for (int i = 0; i < verticals.size(); i++) {
+                Photo photo1 = verticals.get(i);
+                int j = i + 1;
+               i++;
+                Photo photo2 = verticals.get(j);
+
+                slides.add(new Slide(photo1.index, photo2.index, photo1.tags, photo2.tags, slides.size()));
+                updateSlideValue(slides.size() - 1);
+                updateSlideTags(slides.get(slides.size() - 1));
+            }
+
+            int numOfSlidesToConsider = 0;
+            for (String tag : slideTags.keySet()) numOfSlidesToConsider += slideTags.get(tag).size();
+
+            for (Slide slide1 : slides) {
+                slide1.updateValue();
+            }
+
             System.out.println("Slides collected: " + slides.size());
-            localSearch(((int)Math.pow(10, 7))/slides.size());
-            ArrayList<Slide> ans = new ArrayList<>(slides);
+            System.out.println("Total number of tags: " + slideTags.size());
+            System.out.println("Slides to consider for all tags: " + numOfSlidesToConsider);
+            int avgNumOfSlidesPerTag = numOfSlidesToConsider / slideTags.size();
+            System.out.println("Average number of slides per tag: " + (1.0 * numOfSlidesToConsider) / slideTags.size());
+//            ArrayList<Slide> ans = localSearch((int) (Math.pow(10, 5)) / avgNumOfSlidesPerTag);
+            ArrayList<Slide> ans = chooseSharing((int) (Math.pow(10, 5)) / avgNumOfSlidesPerTag);
 
 
             System.out.println("Score is: " + calcScore(ans));
             System.out.println("=============================");
             writer.write(ans.size() + " ");
-            for (Slide slide: ans) writer.write("\n" + slide);
+            for (Slide slide : ans) writer.write("\n" + slide);
 
             reader.close();
             writer.close();
@@ -73,69 +88,84 @@ public class PhotoSlideShow {
     }
 
     private static ArrayList<Slide> slides;
+    private static HashMap<String, ArrayList<Integer>> slideTags;
 
-    private static void localSearch(int numOfIterations) {
+    private static ArrayList<Slide> chooseSharing(int numOfIterations) {
+        Set<Integer> taken = new HashSet<>();
+        ArrayList<Slide> slidesToTake = new ArrayList<>();
+        for (String tag: slideTags.keySet()) {
+            for (int index: slideTags.get(tag)) {
+                if (!taken.contains(index)) {
+                    slidesToTake.add(slides.get(index));
+                    taken.add(index);
+                }
+            }
+        }
+
+        slides = slidesToTake;
+        return localSearch(numOfIterations);
+    }
+
+    private static ArrayList<Slide> localSearch(int numOfIterations) {
         System.out.println("Number of iterations: " + numOfIterations);
         System.out.println("Score at start: " + calcScore(slides));
+        ArrayList<Slide> changingSlides = new ArrayList<>(slides);
+//        Collections.shuffle(changingSlides);
+//        changingSlides.sort(Slide::compareTo);
+//        changingSlides.sort(Collections.reverseOrder(Slide::compareTo));
+        HashMap<Integer, Integer> trackChangedPositions = new HashMap<>();
+        for (int i = 0; i < changingSlides.size(); i++) trackChangedPositions.put(changingSlides.get(i).index, i);
 
-        PriorityQueue<Slide> slidePriorityQueue = new PriorityQueue<>(slides);
-
-        for (int i = 0; i < numOfIterations; i++) {
-            Slide min = slidePriorityQueue.peek();
+        for (int i = 0; i < Math.min(numOfIterations, changingSlides.size()); i++) {
+            Slide min = changingSlides.get(i);
             int maxIncrement = 0;
             assert min != null;
-            int maxIncrementIndex = min.index;
+            int minIndex = trackChangedPositions.get(min.index);
+            int maxIncrementIndex = minIndex;
 
-            for (int j = 0; j < slides.size(); j++) {
-                if (j != min.index) {
-                    int increment = calcDifference(j, min.index, slides);
-                    if (increment > maxIncrement) {
-                        maxIncrement = increment;
-                        maxIncrementIndex = j;
+            for (String tag : min.tags) {
+                ArrayList<Integer> consideringSlides = slideTags.get(tag);
+                for (Integer consideringSlide : consideringSlides) {
+                    if (consideringSlide == 0) consideringSlide += 1;
+                    else if (consideringSlide == slides.size() - 1) consideringSlide -= 1;
+                    else consideringSlide += (consideringSlide % 2 == 0 ? -1 : 1);
+                    Slide slide = slides.get(consideringSlide);
+                    int currIndex = trackChangedPositions.get(slide.index);
+                    if (currIndex != min.index) {
+                        int increment = calcDifference(currIndex, minIndex, changingSlides);
+                        if (increment > maxIncrement) {
+                            maxIncrement = increment;
+                            maxIncrementIndex = currIndex;
+                        }
                     }
                 }
             }
 
             if (maxIncrementIndex != min.index) {
-                int a = min.index;
 
-                Slide aAbove = a > 0 ? slides.get(a - 1) : null;
-                Slide aMiddle = slides.get(maxIncrementIndex);
-                Slide aBelow = a < slides.size() - 1 ? slides.get(a + 1) : null;
+                Slide aMiddle = changingSlides.get(maxIncrementIndex);
 
-                Slide bAbove = maxIncrementIndex > 0 ? slides.get(maxIncrementIndex - 1) : null;
-                Slide bMiddle = slides.get(a);
-                Slide bBelow = maxIncrementIndex < slides.size() - 1 ? slides.get(maxIncrementIndex + 1) : null;
+                Slide bMiddle = changingSlides.get(minIndex);
 
-                if (aAbove != null) {
-                    slidePriorityQueue.remove(aAbove);
-                    aAbove.value = calcLocalScore(getAbove(aAbove, true), aAbove, aMiddle);
-                }
-                slidePriorityQueue.remove(aMiddle);
-                aMiddle.value = calcLocalScore(aAbove, aMiddle, aBelow);
-                if (aBelow != null) {
-                    slidePriorityQueue.remove(aBelow);
-                    aBelow.value = calcLocalScore(aMiddle, aBelow, getAbove(aBelow, false));
-                }
+                changingSlides.set(minIndex, aMiddle);
+                changingSlides.set(maxIncrementIndex, bMiddle);
+                trackChangedPositions.put(aMiddle.index, minIndex);
+                trackChangedPositions.put(bMiddle.index, maxIncrementIndex);
+            }
 
-                if (bAbove != null) {
-                    slidePriorityQueue.remove(bAbove);
-                    bAbove.value = calcLocalScore(getAbove(bAbove, true), bAbove, bMiddle);
-                }
-                slidePriorityQueue.remove(bMiddle);
-                bMiddle.value = calcLocalScore(bAbove, bMiddle, bBelow);
-                if (bBelow != null) {
-                    slidePriorityQueue.remove(bBelow);
-                    bBelow.value = calcLocalScore(bMiddle, bBelow, getAbove(bBelow, false));
-                }
+            if (numOfIterations / 10 != 0 && i % (numOfIterations / 10) == 0)
+                System.out.println("Iteration number " + (i + 1) + " and score: " + calcScore(changingSlides));
+        }
 
-                slides.set(a, aMiddle); slides.set(maxIncrementIndex, bMiddle);
-                if (aAbove != null) slidePriorityQueue.add(aAbove);
-                slidePriorityQueue.add(aMiddle);
-                if (aBelow != null) slidePriorityQueue.add(aBelow);
-                if (bAbove != null) slidePriorityQueue.add(bAbove);
-                slidePriorityQueue.add(bMiddle);
-                if (bBelow != null) slidePriorityQueue.add(bBelow);
+        return changingSlides;
+    }
+
+    private static void updateSlideTags(Slide slide) {
+        for (String tag : slide.tags) {
+            if (slideTags.containsKey(tag)) slideTags.get(tag).add(slide.index);
+            else {
+                slideTags.put(tag, new ArrayList<>());
+                slideTags.get(tag).add(slide.index);
             }
         }
     }
@@ -160,7 +190,7 @@ public class PhotoSlideShow {
         return score;
     }
 
-    private static class Photo {
+    private static class Photo implements Comparable<Photo> {
         char orientation;
         int numOfTags;
         int index;
@@ -177,12 +207,17 @@ public class PhotoSlideShow {
         public String toString() {
             return orientation + " " + numOfTags + " " + tags;
         }
+
+        @Override
+        public int compareTo(Photo other) {
+            return numOfTags - other.numOfTags;
+        }
     }
 
     private static int calcScoreForAdjacentSlides(Slide slide1, Slide slide2) {
         Set<String> both = new HashSet<>(slide1.tags);
         both.retainAll(slide2.tags);
-        int inBoth =  both.size();
+        int inBoth = both.size();
 
         both = new HashSet<>(slide1.tags);
         both.removeAll(slide2.tags);
@@ -253,9 +288,13 @@ public class PhotoSlideShow {
             return other.id2 == id2 && other.id1 == id1;
         }
 
+        void updateValue() {
+            for (String tag: tags) value += slideTags.get(tag).size();
+        }
+
         @Override
         public int compareTo(Slide other) {
-            return -value + other.value;
+            return value - other.value;
         }
     }
 
