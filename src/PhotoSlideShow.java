@@ -19,7 +19,7 @@ public class PhotoSlideShow {
 
     public static void main(String[] args) throws IOException {
         BufferedWriter writer;
-        for (int file = 0; file < INPUT_FILENAMES.length; file++) {
+        for (int file = 3; file < INPUT_FILENAMES.length; file++) {
             String FILENAME = INPUT_FILENAMES[file];
             String outputFile = OUTPUT_FILENAMES[file];
 
@@ -53,7 +53,7 @@ public class PhotoSlideShow {
             for (int i = 0; i < verticals.size(); i++) {
                 Photo photo1 = verticals.get(i);
                 int j = i + 1;
-               i++;
+                i++;
                 Photo photo2 = verticals.get(j);
 
                 slides.add(new Slide(photo1.index, photo2.index, photo1.tags, photo2.tags, slides.size()));
@@ -75,7 +75,8 @@ public class PhotoSlideShow {
             System.out.println("Average number of slides per tag: " + (1.0 * numOfSlidesToConsider) / slideTags.size());
 //            ArrayList<Slide> ans = localSearch((int) (Math.pow(10, 5)) / avgNumOfSlidesPerTag);
 //            ArrayList<Slide> ans = chooseSharing((int) (Math.pow(10, 5)) / avgNumOfSlidesPerTag);
-            ArrayList<Slide> ans = chooseSharingWhileOrderingTags((int) (Math.pow(10, 5)) / avgNumOfSlidesPerTag);
+//            ArrayList<Slide> ans = chooseSharingWhileOrderingTags((int) (Math.pow(10, 5)) / avgNumOfSlidesPerTag);
+            ArrayList<Slide> ans = greedy(slides);
 
 
             System.out.println("Score is: " + calcScore(ans));
@@ -92,11 +93,63 @@ public class PhotoSlideShow {
     private static ArrayList<Slide> slides;
     private static HashMap<String, ArrayList<Integer>> slideTags;
 
+    private static ArrayList<Slide> greedy(ArrayList<Slide> slides) {
+        // TODO: Use photos before turning them into slides
+
+        ArrayList<Slide> slidesToTake = new ArrayList<>();
+        HashSet<Integer> takenSlides = new HashSet<>();
+
+        int currSlide = 0;
+        while (true) {
+            takenSlides.add(currSlide);
+            slidesToTake.add(slides.get(currSlide));
+            if (slidesToTake.size() == slides.size()) break;
+            Set<Integer> slidesToConsider = new HashSet<>();
+            int bestSlide = currSlide;
+            int bestScore = -1;
+            for (String tag : slides.get(currSlide).tags) {
+                if (slidesToConsider.size() == 0)
+                    slidesToConsider.addAll(slideTags.get(tag));
+                else slidesToConsider.retainAll(slideTags.get(tag));
+                slidesToConsider.removeAll(takenSlides);
+                if (slidesToConsider.size() < 1000) break;
+            }
+
+            if (slidesToTake.size() % 1000 == 0)
+                System.out.println("Size of slides to consider: " + slidesToConsider.size()
+                        + " Current size of sol: " + slidesToTake.size()
+                        + " Current score: " + calcScore(slidesToTake));
+            int counter = 0;
+            for (int j : slidesToConsider) {
+                if (!takenSlides.contains(j)) {
+                    int score = calcScoreForAdjacentSlides(slides.get(currSlide), slides.get(j));
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestSlide = j;
+                    }
+                }
+                counter++;
+//                if (counter > 1000 && bestSlide != currSlide) break;
+            }
+            if (bestSlide != currSlide) currSlide = bestSlide;
+            else {
+                for (int i = 0; i < slides.size(); i++) {
+                    if (!takenSlides.contains(i)) {
+                        currSlide = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return slidesToTake;
+    }
+
     private static ArrayList<Slide> chooseSharing(int numOfIterations) {
         Set<Integer> taken = new HashSet<>();
         ArrayList<Slide> slidesToTake = new ArrayList<>();
-        for (String tag: slideTags.keySet()) {
-            for (int index: slideTags.get(tag)) {
+        for (String tag : slideTags.keySet()) {
+            for (int index : slideTags.get(tag)) {
                 if (!taken.contains(index)) {
                     slidesToTake.add(slides.get(index));
                     taken.add(index);
@@ -342,7 +395,7 @@ public class PhotoSlideShow {
         }
 
         void updateValue() {
-            for (String tag: tags) value += slideTags.get(tag).size();
+            for (String tag : tags) value += slideTags.get(tag).size();
         }
 
         @Override
